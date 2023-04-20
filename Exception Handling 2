@@ -1,0 +1,100 @@
+import java.io.File;
+import java.io.FileNotFoundException;
+import java.io.PrintWriter;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
+import java.util.Scanner;
+
+class NotValidAutosarFileException extends Exception {
+    public NotValidAutosarFileException(String message) {
+        super(message);
+    }
+}
+
+class EmptyAutosarFileException extends RuntimeException {
+    public EmptyAutosarFileException(String message) {
+        super(message);
+    }
+}
+
+public class AutosarContainerSorter {
+
+    public static void main(String[] args) {
+        try {
+            // Check that an argument was provided
+            if (args.length < 1) {
+                throw new IllegalArgumentException("No input file specified");
+            }
+
+            // Parse the input file name from the argument
+            String inputFileName = args[0];
+
+            // Check that the file has the .arxml extension
+            if (!inputFileName.endsWith(".arxml")) {
+                throw new NotValidAutosarFileException("Input file is not a valid Autosar file");
+            }
+
+            // Check if the file is empty
+            File inputFile = new File(inputFileName);
+            if (inputFile.length() == 0) {
+                throw new EmptyAutosarFileException("Input file is empty");
+            }
+
+            // Open the input file
+            Scanner scanner = new Scanner(inputFile);
+
+            // Read the input file line by line
+            List<String> lines = new ArrayList<>();
+            while (scanner.hasNextLine()) {
+                lines.add(scanner.nextLine());
+            }
+            scanner.close();
+
+            // Find all containers and sort them by their short name
+            List<Integer> containerIndices = new ArrayList<>();
+            for (int i = 0; i < lines.size(); i++) {
+                if (lines.get(i).contains("<CONTAINER")) {
+                    containerIndices.add(i);
+                }
+            }
+            List<String> containerLines = new ArrayList<>();
+            for (int i = 0; i < containerIndices.size(); i++) {
+                int startIndex = containerIndices.get(i);
+                int endIndex = i < containerIndices.size() - 1 ? containerIndices.get(i + 1) : lines.size();
+                containerLines.add(String.join("", lines.subList(startIndex, endIndex)));
+            }
+            Collections.sort(containerLines, (String c1, String c2) -> {
+                String shortName1 = c1.substring(c1.indexOf("<SHORT-NAME>") + "<SHORT-NAME>".length(), c1.indexOf("</SHORT-NAME>"));
+                String shortName2 = c2.substring(c2.indexOf("<SHORT-NAME>") + "<SHORT-NAME>".length(), c2.indexOf("</SHORT-NAME>"));
+                return shortName1.compareTo(shortName2);
+            });
+
+            // Write the sorted containers to a new file
+            String outputFileName = inputFileName.substring(0, inputFileName.lastIndexOf('.')) + "_mod.arxml";
+            PrintWriter writer = new PrintWriter(outputFileName);
+            writer.println("<?xml version=\"1.0\" encoding=\"UTF-8\"?>");
+            writer.println("<AUTOSAR>");
+            for (String containerLine : containerLines) {
+                writer.println(containerLine);
+            }
+            writer.println("</AUTOSAR>");
+            writer.close();
+
+            System.out.println("Containers sorted successfully and written to " + outputFileName);
+
+        } catch (IllegalArgumentException | NotValidAutosarFileException e) {
+            System.err.println("Error: " + e.getMessage());
+            System.err.println("Usage: java AutosarContainerSorter input_file.arxml");
+        } catch (FileNotFoundException e) {
+            System.err.println("Error: " + e.getMessage());
+            System.err.println("Input file not found");
+        } catch (EmptyAutosarFileException e) {
+            System.err.println("Error: " + e.getMessage());
+            System.err.println("Input file is empty");
+        } catch (Exception e) {
+            System.err.println("Error: " + e.getMessage());
+            System.err.println("An unexpected error occurred. Please try again.");
+        }
+    }
+}
