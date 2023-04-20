@@ -1,0 +1,123 @@
+import java.io.File;
+import java.io.FileNotFoundException;
+import java.io.FileWriter;
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
+import java.util.Scanner;
+
+public class AutosarContainerReorderer {
+    public static void main(String[] args) {
+        try {
+            // Check that an argument was provided
+            if (args.length == 0) {
+                throw new IllegalArgumentException("No input file specified");
+            }
+
+            // Parse the input file name from the argument
+            String inputFileName = args[0];
+
+            // Check that the file has the .arxml extension
+            if (!inputFileName.endsWith(".arxml")) {
+                throw new NotVaildAutosarFileException("Input file is not a valid Autosar file");
+            }
+
+            // Open the input file
+            File inputFile = new File(inputFileName);
+            if (!inputFile.exists()) {
+                throw new FileNotFoundException("Input file does not exist");
+            }
+            if (inputFile.length() == 0) {
+                throw new EmptyAutosarFileException("Input file is empty");
+            }
+            Scanner scanner = new Scanner(inputFile);
+
+            // Parse the containers from the input file
+            List<Container> containers = new ArrayList<>();
+            while (scanner.hasNextLine()) {
+                String line = scanner.nextLine();
+                if (line.contains("<CONTAINER")) {
+                    String uuid = line.substring(line.indexOf("UUID=\"") + 6, line.indexOf("\">"));
+                    String shortName = scanner.nextLine().trim().substring(12, scanner.nextLine().trim().indexOf("</SHORT-NAME>"));
+                    String longName = scanner.nextLine().trim().substring(11, scanner.nextLine().trim().indexOf("</LONG-NAME>"));
+                    containers.add(new Container(uuid, shortName, longName));
+                }
+            }
+            scanner.close();
+
+            // Sort the containers alphabetically by short name
+            Collections.sort(containers);
+
+            // Write the sorted containers to a new output file
+            String outputFileName = inputFileName.substring(0, inputFileName.lastIndexOf(".")) + "_mod.arxml";
+            FileWriter writer = new FileWriter(outputFileName);
+            scanner = new Scanner(inputFile);
+            while (scanner.hasNextLine()) {
+                String line = scanner.nextLine();
+                if (line.contains("<CONTAINER")) {
+                    Container container = containers.remove(0);
+                    writer.write("<CONTAINER UUID=\"" + container.getUuid() +            "\">\n");
+                    writer.write("    <SHORT-NAME>" + container.getShortName() + "</SHORT-NAME>\n");
+                    writer.write("    <LONG-NAME>" + container.getLongName() + "</LONG-NAME>\n");
+                    writer.write("</CONTAINER>\n");
+                } else {
+                    writer.write(line + "\n");
+                }
+            }
+            scanner.close();
+            writer.close();
+
+            System.out.println("Containers reordered successfully");
+
+        } catch (IllegalArgumentException | NotVaildAutosarFileException | EmptyAutosarFileException e) {
+            System.err.println("Error: " + e.getMessage());
+        } catch (FileNotFoundException e) {
+            System.err.println("Error: Input file not found");
+        } catch (IOException e) {
+            System.err.println("Error: Failed to write output file");
+        }
+    }
+
+    static class Container implements Comparable<Container> {
+        private String uuid;
+        private String shortName;
+        private String longName;
+
+        public Container(String uuid, String shortName, String longName) {
+            this.uuid = uuid;
+            this.shortName = shortName;
+            this.longName = longName;
+        }
+
+        public String getUuid() {
+            return uuid;
+        }
+
+        public String getShortName() {
+            return shortName;
+        }
+
+        public String getLongName() {
+            return longName;
+        }
+
+        @Override
+        public int compareTo(Container other) {
+            return this.shortName.compareTo(other.shortName);
+        }
+    }
+
+    static class NotVaildAutosarFileException extends Exception {
+        public NotVaildAutosarFileException(String message) {
+            super(message);
+        }
+    }
+
+    static class EmptyAutosarFileException extends RuntimeException {
+        public EmptyAutosarFileException(String message) {
+            super(message);
+        }
+    }
+}
+
